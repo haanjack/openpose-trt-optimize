@@ -14,499 +14,76 @@ $ docker run -d --runtime=nvidia --name=tensorrt -v $(pwd)/openpose-engine:/work
     nvcr.io/nvidia/tensorrt:18.09-py3
 ```
 
-## 2. Build & Run
+## 2. Download models
 ```bash
-$ docker exec -ti -e CUDA_VISIBLE_DEVICES=0 -e VERBOSE=1 tensorrt make
-$ docker exec -ti -e CUDA_VISIBLE_DEVICES=0 tensorrt bin/openpose
+$ ./models/getModels.sh
 ```
 
-**Result using 1 Tesla V100-DGX-Station**
+## 3. Build & Run
 ```bash
+$ docker exec -ti -e VERBOSE=1 tensorrt make
+$ docker exec -ti -e tensorrt bin/openpose --output=net_output \
+    --deploy=models/pose/body_25/pose_deploy.prototxt --model=models/pose/body_25/pose_iter_584000.caffemodel \
+    --device=1 --batch=4 --fp16
+```
+
+# Sample results using 1x Tesla V100-DGX-Station
+| model | batch size | fp16 |
+|:--- | --- | --- |
+| models/pose/body_25 | 4 | O |
+```bash
+output: net_output
+device: 1
+batch: 4
+deploy: models/pose/body_25/pose_deploy.prototxt
+model: models/pose/body_25/pose_iter_584000.caffemodel
+fp16
 Building and running a GPU inference engine for OpenPose, N=4...
-models/pose/body_25/pose_deploy.prototxt
-use fp16..
-Bindings after deserializing:
-Binding 0 (image): Input.
-Binding 1 (net_output): Output.
-conv1_1 + relu1_1 input reformatter 0    0.054ms
-conv1_1 + relu1_1                        0.539ms
-conv1_2 + relu1_2                        1.090ms
-pool1_stage1                             0.264ms
-conv2_1 + relu2_1                        0.537ms
-conv2_2 + relu2_2                        0.934ms
-pool2_stage1                             0.137ms
-conv3_1 + relu3_1                        0.495ms
-conv3_2 + relu3_2                        0.910ms
-conv3_3 + relu3_3                        0.910ms
-conv3_4 + relu3_4                        0.909ms
-pool3_stage1                             0.071ms
-conv4_1 + relu4_1                        0.459ms
-conv4_2                                  0.883ms
-prelu4_2 input reformatter 0             0.054ms
-prelu4_2                                 0.102ms
-conv4_3_CPM input reformatter 0          0.057ms
-conv4_3_CPM                              0.448ms
-prelu4_3_CPM input reformatter 0         0.029ms
-prelu4_3_CPM                             0.054ms
-conv4_4_CPM input reformatter 0          0.032ms
-conv4_4_CPM                              0.119ms
-prelu4_4_CPM input reformatter 0         0.015ms
-prelu4_4_CPM                             0.028ms
-Mconv1_stage0_L2_0 input reformatter 0   0.019ms
-Mconv1_stage0_L2_0                       0.064ms
-Mprelu1_stage0_L2_0 input reformatter 0  0.012ms
-Mprelu1_stage0_L2_0                      0.016ms
-Mconv1_stage0_L2_1 input reformatter 0   0.014ms
-Mconv1_stage0_L2_1                       0.051ms
-Mprelu1_stage0_L2_1 input reformatter 0  0.012ms
-Mprelu1_stage0_L2_1                      0.024ms
-Mconv1_stage0_L2_2 input reformatter 0   0.014ms
-Mconv1_stage0_L2_2                       0.051ms
-Mprelu1_stage0_L2_2 input reformatter 0  0.012ms
-Mprelu1_stage0_L2_2                      0.024ms
-Mconv1_stage0_L2_0 copy                  0.017ms
-Mconv1_stage0_L2_1 copy                  0.016ms
-Mconv1_stage0_L2_2 copy                  0.016ms
-Mconv2_stage0_L2_0                       0.131ms
-Mprelu2_stage0_L2_0 input reformatter 0  0.012ms
-Mprelu2_stage0_L2_0                      0.024ms
-Mconv2_stage0_L2_1 input reformatter 0   0.014ms
-Mconv2_stage0_L2_1                       0.051ms
-Mprelu2_stage0_L2_1 input reformatter 0  0.012ms
-Mprelu2_stage0_L2_1                      0.023ms
-Mconv2_stage0_L2_2 input reformatter 0   0.014ms
-Mconv2_stage0_L2_2                       0.051ms
-Mprelu2_stage0_L2_2 input reformatter 0  0.012ms
-Mprelu2_stage0_L2_2                      0.016ms
-Mconv2_stage0_L2_0 copy                  0.017ms
-Mconv2_stage0_L2_1 copy                  0.016ms
-Mconv2_stage0_L2_2 copy                  0.016ms
-Mconv3_stage0_L2_0                       0.131ms
-Mprelu3_stage0_L2_0 input reformatter 0  0.012ms
-Mprelu3_stage0_L2_0                      0.024ms
-Mconv3_stage0_L2_1 input reformatter 0   0.014ms
-Mconv3_stage0_L2_1                       0.050ms
-Mprelu3_stage0_L2_1 input reformatter 0  0.012ms
-Mprelu3_stage0_L2_1                      0.024ms
-Mconv3_stage0_L2_2 input reformatter 0   0.014ms
-Mconv3_stage0_L2_2                       0.051ms
-Mprelu3_stage0_L2_2 input reformatter 0  0.012ms
-Mprelu3_stage0_L2_2                      0.024ms
-Mconv3_stage0_L2_0 copy                  0.017ms
-Mconv3_stage0_L2_1 copy                  0.016ms
-Mconv3_stage0_L2_2 copy                  0.016ms
-Mconv4_stage0_L2_0                       0.131ms
-Mprelu4_stage0_L2_0 input reformatter 0  0.012ms
-Mprelu4_stage0_L2_0                      0.024ms
-Mconv4_stage0_L2_1 input reformatter 0   0.014ms
-Mconv4_stage0_L2_1                       0.051ms
-Mprelu4_stage0_L2_1 input reformatter 0  0.012ms
-Mprelu4_stage0_L2_1                      0.024ms
-Mconv4_stage0_L2_2 input reformatter 0   0.014ms
-Mconv4_stage0_L2_2                       0.050ms
-Mprelu4_stage0_L2_2 input reformatter 0  0.012ms
-Mprelu4_stage0_L2_2                      0.021ms
-Mconv4_stage0_L2_0 copy                  0.016ms
-Mconv4_stage0_L2_1 copy                  0.016ms
-Mconv4_stage0_L2_2 copy                  0.016ms
-Mconv5_stage0_L2_0                       0.131ms
-Mprelu5_stage0_L2_0 input reformatter 0  0.012ms
-Mprelu5_stage0_L2_0                      0.024ms
-Mconv5_stage0_L2_1 input reformatter 0   0.014ms
-Mconv5_stage0_L2_1                       0.051ms
-Mprelu5_stage0_L2_1 input reformatter 0  0.012ms
-Mprelu5_stage0_L2_1                      0.022ms
-Mconv5_stage0_L2_2 input reformatter 0   0.014ms
-Mconv5_stage0_L2_2                       0.051ms
-Mprelu5_stage0_L2_2 input reformatter 0  0.012ms
-Mprelu5_stage0_L2_2                      0.017ms
-Mconv5_stage0_L2_0 copy                  0.017ms
-Mconv5_stage0_L2_1 copy                  0.016ms
-Mconv5_stage0_L2_2 copy                  0.016ms
-Mconv6_stage0_L2                         0.054ms
-Mprelu6_stage0_L2 input reformatter 0    0.029ms
-Mprelu6_stage0_L2                        0.053ms
-Mconv7_stage0_L2 input reformatter 0     0.032ms
-Mconv7_stage0_L2                         0.026ms
-conv4_4_CPM copy                         0.106ms
-Mconv1_stage1_L2_0                       0.095ms
-Mprelu1_stage1_L2_0 input reformatter 0  0.015ms
-Mprelu1_stage1_L2_0                      0.020ms
-Mconv1_stage1_L2_1 input reformatter 0   0.018ms
-Mconv1_stage1_L2_1                       0.066ms
-Mprelu1_stage1_L2_1 input reformatter 0  0.015ms
-Mprelu1_stage1_L2_1                      0.030ms
-Mconv1_stage1_L2_2 input reformatter 0   0.019ms
-Mconv1_stage1_L2_2                       0.066ms
-Mprelu1_stage1_L2_2 input reformatter 0  0.015ms
-Mprelu1_stage1_L2_2                      0.028ms
-Mconv1_stage1_L2_0 copy                  0.019ms
-Mconv1_stage1_L2_1 copy                  0.019ms
-Mconv1_stage1_L2_2 copy                  0.019ms
-Mconv2_stage1_L2_0                       0.175ms
-Mprelu2_stage1_L2_0 input reformatter 0  0.015ms
-Mprelu2_stage1_L2_0                      0.030ms
-Mconv2_stage1_L2_1 input reformatter 0   0.019ms
-Mconv2_stage1_L2_1                       0.066ms
-Mprelu2_stage1_L2_1 input reformatter 0  0.015ms
-Mprelu2_stage1_L2_1                      0.030ms
-Mconv2_stage1_L2_2 input reformatter 0   0.018ms
-Mconv2_stage1_L2_2                       0.066ms
-Mprelu2_stage1_L2_2 input reformatter 0  0.015ms
-Mprelu2_stage1_L2_2                      0.022ms
-Mconv2_stage1_L2_0 copy                  0.019ms
-Mconv2_stage1_L2_1 copy                  0.019ms
-Mconv2_stage1_L2_2 copy                  0.019ms
-Mconv3_stage1_L2_0                       0.175ms
-Mprelu3_stage1_L2_0 input reformatter 0  0.015ms
-Mprelu3_stage1_L2_0                      0.030ms
-Mconv3_stage1_L2_1 input reformatter 0   0.018ms
-Mconv3_stage1_L2_1                       0.066ms
-Mprelu3_stage1_L2_1 input reformatter 0  0.015ms
-Mprelu3_stage1_L2_1                      0.030ms
-Mconv3_stage1_L2_2 input reformatter 0   0.019ms
-Mconv3_stage1_L2_2                       0.066ms
-Mprelu3_stage1_L2_2 input reformatter 0  0.015ms
-Mprelu3_stage1_L2_2                      0.030ms
-Mconv3_stage1_L2_0 copy                  0.019ms
-Mconv3_stage1_L2_1 copy                  0.019ms
-Mconv3_stage1_L2_2 copy                  0.019ms
-Mconv4_stage1_L2_0                       0.175ms
-Mprelu4_stage1_L2_0 input reformatter 0  0.015ms
-Mprelu4_stage1_L2_0                      0.029ms
-Mconv4_stage1_L2_1 input reformatter 0   0.019ms
-Mconv4_stage1_L2_1                       0.066ms
-Mprelu4_stage1_L2_1 input reformatter 0  0.015ms
-Mprelu4_stage1_L2_1                      0.028ms
-Mconv4_stage1_L2_2 input reformatter 0   0.018ms
-Mconv4_stage1_L2_2                       0.066ms
-Mprelu4_stage1_L2_2 input reformatter 0  0.015ms
-Mprelu4_stage1_L2_2                      0.029ms
-Mconv4_stage1_L2_0 copy                  0.019ms
-Mconv4_stage1_L2_1 copy                  0.019ms
-Mconv4_stage1_L2_2 copy                  0.018ms
-Mconv5_stage1_L2_0                       0.175ms
-Mprelu5_stage1_L2_0 input reformatter 0  0.015ms
-Mprelu5_stage1_L2_0                      0.030ms
-Mconv5_stage1_L2_1 input reformatter 0   0.019ms
-Mconv5_stage1_L2_1                       0.066ms
-Mprelu5_stage1_L2_1 input reformatter 0  0.015ms
-Mprelu5_stage1_L2_1                      0.030ms
-Mconv5_stage1_L2_2 input reformatter 0   0.018ms
-Mconv5_stage1_L2_2                       0.066ms
-Mprelu5_stage1_L2_2 input reformatter 0  0.015ms
-Mprelu5_stage1_L2_2                      0.026ms
-Mconv5_stage1_L2_0 copy                  0.019ms
-Mconv5_stage1_L2_1 copy                  0.019ms
-Mconv5_stage1_L2_2 copy                  0.018ms
-Mconv6_stage1_L2                         0.131ms
-Mprelu6_stage1_L2 input reformatter 0    0.054ms
-Mprelu6_stage1_L2                        0.101ms
-Mconv7_stage1_L2 input reformatter 0     0.057ms
-Mconv7_stage1_L2                         0.040ms
-Mconv1_stage2_L2_0                       0.095ms
-Mprelu1_stage2_L2_0 input reformatter 0  0.015ms
-Mprelu1_stage2_L2_0                      0.020ms
-Mconv1_stage2_L2_1 input reformatter 0   0.019ms
-Mconv1_stage2_L2_1                       0.066ms
-Mprelu1_stage2_L2_1 input reformatter 0  0.015ms
-Mprelu1_stage2_L2_1                      0.030ms
-Mconv1_stage2_L2_2 input reformatter 0   0.019ms
-Mconv1_stage2_L2_2                       0.066ms
-Mprelu1_stage2_L2_2 input reformatter 0  0.015ms
-Mprelu1_stage2_L2_2                      0.030ms
-Mconv1_stage2_L2_0 copy                  0.019ms
-Mconv1_stage2_L2_1 copy                  0.019ms
-Mconv1_stage2_L2_2 copy                  0.019ms
-Mconv2_stage2_L2_0                       0.175ms
-Mprelu2_stage2_L2_0 input reformatter 0  0.015ms
-Mprelu2_stage2_L2_0                      0.030ms
-Mconv2_stage2_L2_1 input reformatter 0   0.019ms
-Mconv2_stage2_L2_1                       0.066ms
-Mprelu2_stage2_L2_1 input reformatter 0  0.015ms
-Mprelu2_stage2_L2_1                      0.030ms
-Mconv2_stage2_L2_2 input reformatter 0   0.019ms
-Mconv2_stage2_L2_2                       0.066ms
-Mprelu2_stage2_L2_2 input reformatter 0  0.015ms
-Mprelu2_stage2_L2_2                      0.025ms
-Mconv2_stage2_L2_0 copy                  0.019ms
-Mconv2_stage2_L2_1 copy                  0.019ms
-Mconv2_stage2_L2_2 copy                  0.019ms
-Mconv3_stage2_L2_0                       0.175ms
-Mprelu3_stage2_L2_0 input reformatter 0  0.015ms
-Mprelu3_stage2_L2_0                      0.027ms
-Mconv3_stage2_L2_1 input reformatter 0   0.019ms
-Mconv3_stage2_L2_1                       0.066ms
-Mprelu3_stage2_L2_1 input reformatter 0  0.015ms
-Mprelu3_stage2_L2_1                      0.029ms
-Mconv3_stage2_L2_2 input reformatter 0   0.018ms
-Mconv3_stage2_L2_2                       0.066ms
-Mprelu3_stage2_L2_2 input reformatter 0  0.015ms
-Mprelu3_stage2_L2_2                      0.029ms
-Mconv3_stage2_L2_0 copy                  0.019ms
-Mconv3_stage2_L2_1 copy                  0.019ms
-Mconv3_stage2_L2_2 copy                  0.018ms
-Mconv4_stage2_L2_0                       0.175ms
-Mprelu4_stage2_L2_0 input reformatter 0  0.015ms
-Mprelu4_stage2_L2_0                      0.028ms
-Mconv4_stage2_L2_1 input reformatter 0   0.019ms
-Mconv4_stage2_L2_1                       0.066ms
-Mprelu4_stage2_L2_1 input reformatter 0  0.015ms
-Mprelu4_stage2_L2_1                      0.028ms
-Mconv4_stage2_L2_2 input reformatter 0   0.018ms
-Mconv4_stage2_L2_2                       0.066ms
-Mprelu4_stage2_L2_2 input reformatter 0  0.015ms
-Mprelu4_stage2_L2_2                      0.028ms
-Mconv4_stage2_L2_0 copy                  0.019ms
-Mconv4_stage2_L2_1 copy                  0.019ms
-Mconv4_stage2_L2_2 copy                  0.018ms
-Mconv5_stage2_L2_0                       0.175ms
-Mprelu5_stage2_L2_0 input reformatter 0  0.015ms
-Mprelu5_stage2_L2_0                      0.029ms
-Mconv5_stage2_L2_1 input reformatter 0   0.019ms
-Mconv5_stage2_L2_1                       0.066ms
-Mprelu5_stage2_L2_1 input reformatter 0  0.015ms
-Mprelu5_stage2_L2_1                      0.030ms
-Mconv5_stage2_L2_2 input reformatter 0   0.018ms
-Mconv5_stage2_L2_2                       0.066ms
-Mprelu5_stage2_L2_2 input reformatter 0  0.015ms
-Mprelu5_stage2_L2_2                      0.026ms
-Mconv5_stage2_L2_0 copy                  0.019ms
-Mconv5_stage2_L2_1 copy                  0.019ms
-Mconv5_stage2_L2_2 copy                  0.018ms
-Mconv6_stage2_L2                         0.131ms
-Mprelu6_stage2_L2 input reformatter 0    0.054ms
-Mprelu6_stage2_L2                        0.101ms
-Mconv7_stage2_L2 input reformatter 0     0.057ms
-Mconv7_stage2_L2                         0.040ms
-Mconv1_stage3_L2_0                       0.095ms
-Mprelu1_stage3_L2_0 input reformatter 0  0.015ms
-Mprelu1_stage3_L2_0                      0.021ms
-Mconv1_stage3_L2_1 input reformatter 0   0.019ms
-Mconv1_stage3_L2_1                       0.066ms
-Mprelu1_stage3_L2_1 input reformatter 0  0.015ms
-Mprelu1_stage3_L2_1                      0.030ms
-Mconv1_stage3_L2_2 input reformatter 0   0.018ms
-Mconv1_stage3_L2_2                       0.066ms
-Mprelu1_stage3_L2_2 input reformatter 0  0.015ms
-Mprelu1_stage3_L2_2                      0.029ms
-Mconv1_stage3_L2_0 copy                  0.019ms
-Mconv1_stage3_L2_1 copy                  0.019ms
-Mconv1_stage3_L2_2 copy                  0.018ms
-Mconv2_stage3_L2_0                       0.175ms
-Mprelu2_stage3_L2_0 input reformatter 0  0.015ms
-Mprelu2_stage3_L2_0                      0.030ms
-Mconv2_stage3_L2_1 input reformatter 0   0.019ms
-Mconv2_stage3_L2_1                       0.066ms
-Mprelu2_stage3_L2_1 input reformatter 0  0.015ms
-Mprelu2_stage3_L2_1                      0.030ms
-Mconv2_stage3_L2_2 input reformatter 0   0.019ms
-Mconv2_stage3_L2_2                       0.066ms
-Mprelu2_stage3_L2_2 input reformatter 0  0.015ms
-Mprelu2_stage3_L2_2                      0.026ms
-Mconv2_stage3_L2_0 copy                  0.019ms
-Mconv2_stage3_L2_1 copy                  0.019ms
-Mconv2_stage3_L2_2 copy                  0.018ms
-Mconv3_stage3_L2_0                       0.174ms
-Mprelu3_stage3_L2_0 input reformatter 0  0.015ms
-Mprelu3_stage3_L2_0                      0.030ms
-Mconv3_stage3_L2_1 input reformatter 0   0.018ms
-Mconv3_stage3_L2_1                       0.066ms
-Mprelu3_stage3_L2_1 input reformatter 0  0.015ms
-Mprelu3_stage3_L2_1                      0.030ms
-Mconv3_stage3_L2_2 input reformatter 0   0.019ms
-Mconv3_stage3_L2_2                       0.066ms
-Mprelu3_stage3_L2_2 input reformatter 0  0.015ms
-Mprelu3_stage3_L2_2                      0.030ms
-Mconv3_stage3_L2_0 copy                  0.019ms
-Mconv3_stage3_L2_1 copy                  0.019ms
-Mconv3_stage3_L2_2 copy                  0.019ms
-Mconv4_stage3_L2_0                       0.174ms
-Mprelu4_stage3_L2_0 input reformatter 0  0.015ms
-Mprelu4_stage3_L2_0                      0.030ms
-Mconv4_stage3_L2_1 input reformatter 0   0.019ms
-Mconv4_stage3_L2_1                       0.066ms
-Mprelu4_stage3_L2_1 input reformatter 0  0.015ms
-Mprelu4_stage3_L2_1                      0.027ms
-Mconv4_stage3_L2_2 input reformatter 0   0.018ms
-Mconv4_stage3_L2_2                       0.066ms
-Mprelu4_stage3_L2_2 input reformatter 0  0.015ms
-Mprelu4_stage3_L2_2                      0.029ms
-Mconv4_stage3_L2_0 copy                  0.019ms
-Mconv4_stage3_L2_1 copy                  0.019ms
-Mconv4_stage3_L2_2 copy                  0.019ms
-Mconv5_stage3_L2_0                       0.175ms
-Mprelu5_stage3_L2_0 input reformatter 0  0.015ms
-Mprelu5_stage3_L2_0                      0.030ms
-Mconv5_stage3_L2_1 input reformatter 0   0.019ms
-Mconv5_stage3_L2_1                       0.066ms
-Mprelu5_stage3_L2_1 input reformatter 0  0.015ms
-Mprelu5_stage3_L2_1                      0.029ms
-Mconv5_stage3_L2_2 input reformatter 0   0.018ms
-Mconv5_stage3_L2_2                       0.066ms
-Mprelu5_stage3_L2_2 input reformatter 0  0.015ms
-Mprelu5_stage3_L2_2                      0.027ms
-Mconv5_stage3_L2_0 copy                  0.018ms
-Mconv5_stage3_L2_1 copy                  0.019ms
-Mconv5_stage3_L2_2 copy                  0.020ms
-Mconv6_stage3_L2                         0.131ms
-Mprelu6_stage3_L2 input reformatter 0    0.054ms
-Mprelu6_stage3_L2                        0.100ms
-Mconv7_stage3_L2 input reformatter 0     0.057ms
-Mconv7_stage3_L2                         0.040ms
-Mconv1_stage0_L1_0                       0.095ms
-Mprelu1_stage0_L1_0 input reformatter 0  0.012ms
-Mprelu1_stage0_L1_0                      0.021ms
-Mconv1_stage0_L1_1 input reformatter 0   0.014ms
-Mconv1_stage0_L1_1                       0.051ms
-Mprelu1_stage0_L1_1 input reformatter 0  0.012ms
-Mprelu1_stage0_L1_1                      0.024ms
-Mconv1_stage0_L1_2 input reformatter 0   0.014ms
-Mconv1_stage0_L1_2                       0.051ms
-Mprelu1_stage0_L1_2 input reformatter 0  0.012ms
-Mprelu1_stage0_L1_2                      0.023ms
-Mconv1_stage0_L1_0 copy                  0.017ms
-Mconv1_stage0_L1_1 copy                  0.016ms
-Mconv1_stage0_L1_2 copy                  0.016ms
-Mconv2_stage0_L1_0                       0.131ms
-Mprelu2_stage0_L1_0 input reformatter 0  0.012ms
-Mprelu2_stage0_L1_0                      0.024ms
-Mconv2_stage0_L1_1 input reformatter 0   0.014ms
-Mconv2_stage0_L1_1                       0.051ms
-Mprelu2_stage0_L1_1 input reformatter 0  0.012ms
-Mprelu2_stage0_L1_1                      0.024ms
-Mconv2_stage0_L1_2 input reformatter 0   0.014ms
-Mconv2_stage0_L1_2                       0.051ms
-Mprelu2_stage0_L1_2 input reformatter 0  0.012ms
-Mprelu2_stage0_L1_2                      0.024ms
-Mconv2_stage0_L1_0 copy                  0.017ms
-Mconv2_stage0_L1_1 copy                  0.016ms
-Mconv2_stage0_L1_2 copy                  0.016ms
-Mconv3_stage0_L1_0                       0.131ms
-Mprelu3_stage0_L1_0 input reformatter 0  0.012ms
-Mprelu3_stage0_L1_0                      0.023ms
-Mconv3_stage0_L1_1 input reformatter 0   0.014ms
-Mconv3_stage0_L1_1                       0.051ms
-Mprelu3_stage0_L1_1 input reformatter 0  0.012ms
-Mprelu3_stage0_L1_1                      0.023ms
-Mconv3_stage0_L1_2 input reformatter 0   0.014ms
-Mconv3_stage0_L1_2                       0.051ms
-Mprelu3_stage0_L1_2 input reformatter 0  0.012ms
-Mprelu3_stage0_L1_2                      0.023ms
-Mconv3_stage0_L1_0 copy                  0.017ms
-Mconv3_stage0_L1_1 copy                  0.016ms
-Mconv3_stage0_L1_2 copy                  0.016ms
-Mconv4_stage0_L1_0                       0.131ms
-Mprelu4_stage0_L1_0 input reformatter 0  0.012ms
-Mprelu4_stage0_L1_0                      0.022ms
-Mconv4_stage0_L1_1 input reformatter 0   0.014ms
-Mconv4_stage0_L1_1                       0.051ms
-Mprelu4_stage0_L1_1 input reformatter 0  0.012ms
-Mprelu4_stage0_L1_1                      0.024ms
-Mconv4_stage0_L1_2 input reformatter 0   0.014ms
-Mconv4_stage0_L1_2                       0.051ms
-Mprelu4_stage0_L1_2 input reformatter 0  0.012ms
-Mprelu4_stage0_L1_2                      0.024ms
-Mconv4_stage0_L1_0 copy                  0.017ms
-Mconv4_stage0_L1_1 copy                  0.016ms
-Mconv4_stage0_L1_2 copy                  0.016ms
-Mconv5_stage0_L1_0                       0.131ms
-Mprelu5_stage0_L1_0 input reformatter 0  0.012ms
-Mprelu5_stage0_L1_0                      0.024ms
-Mconv5_stage0_L1_1 input reformatter 0   0.014ms
-Mconv5_stage0_L1_1                       0.051ms
-Mprelu5_stage0_L1_1 input reformatter 0  0.012ms
-Mprelu5_stage0_L1_1                      0.021ms
-Mconv5_stage0_L1_2 input reformatter 0   0.014ms
-Mconv5_stage0_L1_2                       0.051ms
-Mprelu5_stage0_L1_2 input reformatter 0  0.012ms
-Mprelu5_stage0_L1_2                      0.021ms
-Mconv5_stage0_L1_0 copy                  0.017ms
-Mconv5_stage0_L1_1 copy                  0.016ms
-Mconv5_stage0_L1_2 copy                  0.016ms
-Mconv6_stage0_L1                         0.054ms
-Mprelu6_stage0_L1 input reformatter 0    0.029ms
-Mprelu6_stage0_L1                        0.048ms
-Mconv7_stage0_L1 input reformatter 0     0.032ms
-Mconv7_stage0_L1                         0.026ms
-Mconv7_stage3_L2 copy                    0.042ms
-Mconv1_stage1_L1_0                       0.111ms
-Mprelu1_stage1_L1_0 input reformatter 0  0.015ms
-Mprelu1_stage1_L1_0                      0.027ms
-Mconv1_stage1_L1_1 input reformatter 0   0.019ms
-Mconv1_stage1_L1_1                       0.066ms
-Mprelu1_stage1_L1_1 input reformatter 0  0.015ms
-Mprelu1_stage1_L1_1                      0.030ms
-Mconv1_stage1_L1_2 input reformatter 0   0.018ms
-Mconv1_stage1_L1_2                       0.066ms
-Mprelu1_stage1_L1_2 input reformatter 0  0.015ms
-Mprelu1_stage1_L1_2                      0.030ms
-Mconv1_stage1_L1_0 copy                  0.019ms
-Mconv1_stage1_L1_1 copy                  0.019ms
-Mconv1_stage1_L1_2 copy                  0.019ms
-Mconv2_stage1_L1_0                       0.174ms
-Mprelu2_stage1_L1_0 input reformatter 0  0.015ms
-Mprelu2_stage1_L1_0                      0.030ms
-Mconv2_stage1_L1_1 input reformatter 0   0.018ms
-Mconv2_stage1_L1_1                       0.066ms
-Mprelu2_stage1_L1_1 input reformatter 0  0.015ms
-Mprelu2_stage1_L1_1                      0.030ms
-Mconv2_stage1_L1_2 input reformatter 0   0.019ms
-Mconv2_stage1_L1_2                       0.066ms
-Mprelu2_stage1_L1_2 input reformatter 0  0.015ms
-Mprelu2_stage1_L1_2                      0.030ms
-Mconv2_stage1_L1_0 copy                  0.019ms
-Mconv2_stage1_L1_1 copy                  0.019ms
-Mconv2_stage1_L1_2 copy                  0.019ms
-Mconv3_stage1_L1_0                       0.174ms
-Mprelu3_stage1_L1_0 input reformatter 0  0.015ms
-Mprelu3_stage1_L1_0                      0.030ms
-Mconv3_stage1_L1_1 input reformatter 0   0.019ms
-Mconv3_stage1_L1_1                       0.066ms
-Mprelu3_stage1_L1_1 input reformatter 0  0.015ms
-Mprelu3_stage1_L1_1                      0.030ms
-Mconv3_stage1_L1_2 input reformatter 0   0.018ms
-Mconv3_stage1_L1_2                       0.066ms
-Mprelu3_stage1_L1_2 input reformatter 0  0.015ms
-Mprelu3_stage1_L1_2                      0.030ms
-Mconv3_stage1_L1_0 copy                  0.019ms
-Mconv3_stage1_L1_1 copy                  0.019ms
-Mconv3_stage1_L1_2 copy                  0.019ms
-Mconv4_stage1_L1_0                       0.174ms
-Mprelu4_stage1_L1_0 input reformatter 0  0.015ms
-Mprelu4_stage1_L1_0                      0.029ms
-Mconv4_stage1_L1_1 input reformatter 0   0.018ms
-Mconv4_stage1_L1_1                       0.066ms
-Mprelu4_stage1_L1_1 input reformatter 0  0.015ms
-Mprelu4_stage1_L1_1                      0.030ms
-Mconv4_stage1_L1_2 input reformatter 0   0.019ms
-Mconv4_stage1_L1_2                       0.066ms
-Mprelu4_stage1_L1_2 input reformatter 0  0.015ms
-Mprelu4_stage1_L1_2                      0.030ms
-Mconv4_stage1_L1_0 copy                  0.019ms
-Mconv4_stage1_L1_1 copy                  0.019ms
-Mconv4_stage1_L1_2 copy                  0.018ms
-Mconv5_stage1_L1_0                       0.174ms
-Mprelu5_stage1_L1_0 input reformatter 0  0.015ms
-Mprelu5_stage1_L1_0                      0.030ms
-Mconv5_stage1_L1_1 input reformatter 0   0.018ms
-Mconv5_stage1_L1_1                       0.066ms
-Mprelu5_stage1_L1_1 input reformatter 0  0.015ms
-Mprelu5_stage1_L1_1                      0.027ms
-Mconv5_stage1_L1_2 input reformatter 0   0.018ms
-Mconv5_stage1_L1_2                       0.066ms
-Mprelu5_stage1_L1_2 input reformatter 0  0.015ms
-Mprelu5_stage1_L1_2                      0.028ms
-Mconv5_stage1_L1_0 copy                  0.019ms
-Mconv5_stage1_L1_1 copy                  0.019ms
-Mconv5_stage1_L1_2 copy                  0.020ms
-Mconv6_stage1_L1                         0.131ms
-Mprelu6_stage1_L1 input reformatter 0    0.054ms
-Mprelu6_stage1_L1                        0.099ms
-Mconv7_stage1_L1 input reformatter 0     0.057ms
-Mconv7_stage1_L1                         0.041ms
-Mconv7_stage1_L1 output reformatter 0    0.007ms
-Time over all layers: 25.567
+Input "image": 3x640x480
+Output "net_output": 78x80x60
+Run inference...
+name=image, bindingIndex=0, buffers.size()=2
+name=net_output, bindingIndex=1, buffers.size()=2
+Average over 10 runs is 25.9082 ms (host walltime is 26.0956 ms, 99% percentile time is 25.9656).
+Average over 10 runs is 25.8934 ms (host walltime is 26.0002 ms, 99% percentile time is 26.0024).
+Average over 10 runs is 25.8963 ms (host walltime is 25.9705 ms, 99% percentile time is 25.986).
+Average over 10 runs is 25.9304 ms (host walltime is 26.1024 ms, 99% percentile time is 26.0352).
+Average over 10 runs is 25.9703 ms (host walltime is 26.046 ms, 99% percentile time is 26.0516).
+Average over 10 runs is 25.9631 ms (host walltime is 26.0303 ms, 99% percentile time is 26.111).
+Average over 10 runs is 25.9284 ms (host walltime is 26.0057 ms, 99% percentile time is 26.0096).
+Average over 10 runs is 25.9412 ms (host walltime is 26.0246 ms, 99% percentile time is 25.984).
+Average over 10 runs is 25.9781 ms (host walltime is 26.0588 ms, 99% percentile time is 26.0966).
+Average over 10 runs is 25.9397 ms (host walltime is 26.0214 ms, 99% percentile time is 26.0157).
+Done.
+```
+
+| model | batch size | fp16 |
+|:--- | --- | --- |
+| models/pose/body_25 | 1 | O |
+```
+output: net_output
+device: 1
+batch: 1
+deploy: models/pose/body_25/pose_deploy.prototxt
+model: models/pose/body_25/pose_iter_584000.caffemodel
+fp16
+Building and running a GPU inference engine for OpenPose, N=1...
+Input "image": 3x640x480
+Output "net_output": 78x80x60
+Run inference...
+name=image, bindingIndex=0, buffers.size()=2
+name=net_output, bindingIndex=1, buffers.size()=2
+Average over 10 runs is 10.6626 ms (host walltime is 10.723 ms, 99% percentile time is 10.6998).
+Average over 10 runs is 10.654 ms (host walltime is 10.7081 ms, 99% percentile time is 10.6762).
+Average over 10 runs is 10.6534 ms (host walltime is 10.7549 ms, 99% percentile time is 10.6988).
+Average over 10 runs is 10.6386 ms (host walltime is 10.6966 ms, 99% percentile time is 10.6619).
+Average over 10 runs is 10.6651 ms (host walltime is 10.7307 ms, 99% percentile time is 10.6875).
+Average over 10 runs is 10.7066 ms (host walltime is 10.7797 ms, 99% percentile time is 10.7459).
+Average over 10 runs is 10.667 ms (host walltime is 10.7657 ms, 99% percentile time is 10.6967).
+Average over 10 runs is 10.7005 ms (host walltime is 10.7898 ms, 99% percentile time is 10.7418).
+Average over 10 runs is 10.7307 ms (host walltime is 10.8071 ms, 99% percentile time is 10.7704).
+Average over 10 runs is 10.7342 ms (host walltime is 10.809 ms, 99% percentile time is 10.7725).
+Done.
 ```
 
 # Todo
