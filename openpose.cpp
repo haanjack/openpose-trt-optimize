@@ -35,11 +35,37 @@ const char* model_path = "models/pose/coco";
 
 static int gDLA{0};
 
+
+struct Params
+{
+    std::string deployFile, modelFile, engine, calibrationCache{"CalibrationTable"};
+    std::string inputs;
+    std::vector<std::string> outputs;
+    int device{0}, batchSize{1}, workspaceSize{16}, iterations{10}, avgRuns{10}, useDLA{0};
+    bool fp16{false}, int8{false}, verbose{false}, allowGPUFallback{false};
+    float pct{99};
+} gParams;
+std::vector<std::string> gInputs;
+std::map<std::string, Dims3> gInputDimensions;
+
 std::string locateFile(const std::string& input)
 {
     // std::vector<std::string> dirs{"models/pose/coco/"};
-    std::vector<std::string> dirs{"models/pose/body_25/"};
+    std::vector<std::string> dirs{"./"};
     return locateFile(input, dirs);
+}
+
+/* Logger */
+float percentile(float percentage, std::vector<float>& times)
+{
+    int all = static_cast<int>(times.size());
+    int exclude = static_cast<int>((1 - percentage / 100) * all);
+    if (0 <= exclude && exclude <= all)
+    {
+        std::sort(times.begin(), times.end());
+        return times[all == exclude ? 0 : all - 1 - exclude];
+    }
+    return std::numeric_limits<float>::infinity();
 }
 
 struct Profiler : public IProfiler
@@ -69,65 +95,89 @@ struct Profiler : public IProfiler
 
 } gProfiler;
 
-void caffeToTRTModel(const std::string& deployFile,             // name for caffe prototxt
-                     const std::string& modelFile,              // name for model
-                     const std::vector<std::string>& outputs,   // network outputs
-                     unsigned int maxBatchSize,                 // batch size - NB must be at least as large as the batch we want to run with)
-                     nvcaffeparser1::IPluginFactoryExt* pluginFactory, // factory for plugin layers
-                     IHostMemory *&trtModelStream)
+ICudaEngine* caffeToTRTModel()
 {
     // create API root class - must span the lifetime of the engine usage
     IBuilder* builder = createInferBuilder(gLogger);
-    INetworkDefinition* network = builder->createNetwork();
 
     // parse the caffe model to populate the network, then set the outputs
+    INetworkDefinition* network = builder->createNetwork();
     ICaffeParser* parser = createCaffeParser();
-    parser->setPluginFactoryExt(pluginFactory);
-
-    bool useFp16 = builder->platformHasFastFp16();
-    std::cout << locateFile(deployFile).c_str() << std::endl;
-    DataType modelDataType = useFp16 ? DataType::kHALF : DataType::kFLOAT; // create a 16-bit model if it's natively supported
-
-    if (useFp16)
-        std::cout << "use fp16.." << std::endl;
-    else
-        std::cout << "use fp32.." << std::endl;
+    
+    // Parse Plugin Layers
+    PluginFactory parserPluginFactory;
+    parser->setPluginFactoryExt(&parserPluginFactory);
 
     const IBlobNameToTensor *blobNameToTensor =
-        parser->parse(locateFile(deployFile).c_str(),               // caffe deploy file
-                                 locateFile(modelFile).c_str(),     // caffe model file
-                                 *network,                          // network definition that the parser will populate
-                                 modelDataType);
-    assert(blobNameToTensor != nullptr);
+        parser->parse(gParams.deployFile.c_str(),    // caffe deploy file
+                      gParams.modelFile.c_str(),     // caffe model file
+                      *network,                          // network definition that the parser will populate
+                      gParams.fp16 ? DataType::kHALF : DataType::kFLOAT);
+    if (!blobNameToTensor)
+        return nullptr;
 
-    // the caffe file has no notion of outputs, so we need to manually say which tensors the engine should generate
-    for (auto& s : outputs)
+    // TODO: Input??
+    for (int i = 0, n = network->getNbInputs(); i < n; i++)
+    {
+        Dims3 dims = static_cast<Dims3&&>(network->getInput(i)->getDimensions());
+        gInputs.push_back(network->getInput(i)->getName());
+        gInputDimensions.insert(std::make_pair(network->getInput(i)->getName(), dims));
+        std::cout << "Input \"" << network->getInput(i)->getName() << "\": " << dims.d[0] << "x" << dims.d[1] << "x" << dims.d[2] << std::endl;
+    }
+
+    // specify which tensors are outputs
+    // the caffe file has no notion of outputs, 
+    // so we need to manually say which tensors the engine should generate
+    for (auto& s : gParams.outputs)
+    {
+        if (blobNameToTensor->find(s.c_str()) == nullptr)
+        {
+            std::cout << "could not find output blob " << s << std::endl;
+            return nullptr;
+        }
         network->markOutput(*blobNameToTensor->find(s.c_str()));
+    }
+
+    for (int i = 0, n = network->getNbOutputs(); i < n; i++)
+    {
+        Dims3 dims = static_cast<Dims3&&>(network->getOutput(i)->getDimensions());
+        std::cout << "Output \"" << network->getOutput(i)->getName() << "\": " << dims.d[0] << "x" << dims.d[1] << "x"
+                  << dims.d[2] << std::endl;
+    }
 
     // Build the engine
-    builder->setMaxBatchSize(maxBatchSize);
-    builder->setMaxWorkspaceSize(16 << 20);
+    builder->setMaxBatchSize(gParams.batchSize);
+    builder->setMaxWorkspaceSize(size_t(gParams.workspaceSize) << 20);
+    builder->setFp16Mode(gParams.fp16);
 
-    // set up the network for paired-fp16 format if available
-    builder->setFp16Mode(useFp16);
+    // RndInt8Calibrator calibrator(1, gParams.calibrationCache);
+    // if (gParams.int8)
+    // {
+    //     builder->setInt8Mode(true);
+    //     builder->setInt8Calibrator(&calibrator);
+    // }
 
-    if (gDLA > 0) samplesCommon::enableDLA(builder, gDLA);
+    if (gParams.useDLA > 0)
+    {
+        builder->setDefaultDeviceType(static_cast<DeviceType>(gParams.useDLA));
+        if (gParams.allowGPUFallback)
+            builder->allowGPUFallback(gParams.allowGPUFallback);
+    }
+
     ICudaEngine* engine = builder->buildCudaEngine(*network);
-    assert(engine);
+    if (engine == nullptr)
+        std::cout << "could not build engine" << std::endl;
 
     // we don't need the network any more, and we can destroy the parser
-    network->destroy();
+    parserPluginFactory.destroyPlugin();
     parser->destroy();
-
-    // serialize the engine, then close everything down
-    trtModelStream = engine->serialize();
-
-    engine->destroy();
+    network->destroy();
     builder->destroy();
-    shutdownProtobufLibrary();
+    
+    return engine;
 }
 
-void timeInference(ICudaEngine* engine, int batchSize)
+void timeInference(ICudaEngine* engine)
 {
     // input and output buffer pointers that we pass to the engine - the engine requires exactly ICudaEngine::getNbBindings(),
     // of these, but in this case we know that there is exactly one input and one output.
@@ -140,8 +190,8 @@ void timeInference(ICudaEngine* engine, int batchSize)
 
     // allocate GPU buffers
     Dims3 inputDims = static_cast<Dims3&&>(engine->getBindingDimensions(inputIndex)), outputDims = static_cast<Dims3&&>(engine->getBindingDimensions(outputIndex));
-    size_t inputSize = batchSize * inputDims.d[0] * inputDims.d[1] * inputDims.d[2] * sizeof(float);
-    size_t outputSize = batchSize * outputDims.d[0] * outputDims.d[1] * outputDims.d[2] * sizeof(float);
+    size_t inputSize = gParams.batchSize * inputDims.d[0] * inputDims.d[1] * inputDims.d[2] * sizeof(float);
+    size_t outputSize = gParams.batchSize * outputDims.d[0] * outputDims.d[1] * outputDims.d[2] * sizeof(float);
 
     CHECK(cudaMalloc(&buffers[inputIndex], inputSize));
     CHECK(cudaMalloc(&buffers[outputIndex], outputSize));
@@ -153,7 +203,7 @@ void timeInference(ICudaEngine* engine, int batchSize)
     CHECK(cudaMemset(buffers[inputIndex], 0, inputSize));
 
     for (int i = 0; i < TIMING_ITERATIONS;i++)
-        context->execute(batchSize, buffers);
+        context->execute(gParams.batchSize, buffers);
 
     // release the context and buffers
     context->destroy();
@@ -161,53 +211,290 @@ void timeInference(ICudaEngine* engine, int batchSize)
     CHECK(cudaFree(buffers[outputIndex]));
 }
 
-int main(int argc, char** argv)
+void createMemory(const ICudaEngine* engine, std::vector<void*>& buffers, const std::string& name)
 {
-    std::cout << "Building and running a GPU inference engine for OpenPose, N=" << BATCH_SIZE << "..." << std::endl;
-    gDLA = samplesCommon::parseDLA(argc, argv);
+    size_t bindingIndex = engine->getBindingIndex(name.c_str());
+    printf("name=%s, bindingIndex=%d, buffers.size()=%d\n", name.c_str(), (int) bindingIndex, (int) buffers.size());
+    assert(bindingIndex < buffers.size());
+    Dims3 dimensions = static_cast<Dims3&&>(engine->getBindingDimensions((int) bindingIndex));
+    size_t eltCount = dimensions.d[0] * dimensions.d[1] * dimensions.d[2] * gParams.batchSize, memSize = eltCount * sizeof(float);
 
-    // create a TensorRT model from the caffe model and serialize it to a stream
-    // parse the caffe model and the meanPlugin_PReLUile
-    PluginFactory parserPluginFactory;
-    IHostMemory *trtModelStream{nullptr};
-    caffeToTRTModel(file_prototxt,
-                    file_caffemodel,
-                    std::vector<std::string>{OUTPUT_BLOB_NAME},
-                    BATCH_SIZE,
-                    &parserPluginFactory,
-                    trtModelStream);
-    parserPluginFactory.destroyPlugin();
-    assert(trtModelStream != nullptr);
+    float* localMem = new float[eltCount];
+    for (size_t i = 0; i < eltCount; i++)
+        localMem[i] = (float(rand()) / RAND_MAX) * 2 - 1;
 
-    // create an engine
-    IRuntime* runtime = createInferRuntime(gLogger);
-    assert(runtime != nullptr);
-    PluginFactory pluginFactory;
-    ICudaEngine *engine = runtime->deserializeCudaEngine(
-        trtModelStream->data(),
-        trtModelStream->size(),
-        &pluginFactory);
-    assert(engine != nullptr);
-    trtModelStream->destroy();
-    printf("Bindings after deserializing:\n");
-    for (int bi = 0; bi < engine->getNbBindings(); bi++) {
-            if (engine->bindingIsInput(bi) == true) {
-    printf("Binding %d (%s): Input.\n",  bi, engine->getBindingName(bi));
-            } else {
-    printf("Binding %d (%s): Output.\n", bi, engine->getBindingName(bi));
-            }
+    void* deviceMem;
+    CHECK(cudaMalloc(&deviceMem, memSize));
+    if (deviceMem == nullptr)
+    {
+        std::cerr << "Out of memory" << std::endl;
+        exit(1);
+    }
+    CHECK(cudaMemcpy(deviceMem, localMem, memSize, cudaMemcpyHostToDevice));
+
+    delete[] localMem;
+    buffers[bindingIndex] = deviceMem;
+}
+
+void doInference(ICudaEngine* engine)
+{
+    IExecutionContext* context = engine->createExecutionContext();
+    // input and output buffer pointers that we pass to the engine - the engine requires exactly IEngine::getNbBindings(),
+    // of these, but in this case we know that there is exactly one input and one output.
+
+    std::vector<void*> buffers(gInputs.size() + gParams.outputs.size());
+    for (size_t i = 0; i < gInputs.size(); i++)
+        createMemory(engine, buffers, gInputs[i]);
+
+    for (size_t i = 0; i < gParams.outputs.size(); i++)
+        createMemory(engine, buffers, gParams.outputs[i]);
+
+    cudaStream_t stream;
+    CHECK(cudaStreamCreate(&stream));
+    cudaEvent_t start, end;
+    CHECK(cudaEventCreateWithFlags(&start, cudaEventBlockingSync));
+    CHECK(cudaEventCreateWithFlags(&end, cudaEventBlockingSync));
+
+    std::vector<float> times(gParams.avgRuns);
+    for (int j = 0; j < gParams.iterations; j++)
+    {
+        float totalGpu{0}, totalHost{0}; // GPU and Host timers
+        for (int i = 0; i < gParams.avgRuns; i++)
+        {
+            auto tStart = std::chrono::high_resolution_clock::now();
+            cudaEventRecord(start, stream);
+            context->enqueue(gParams.batchSize, &buffers[0], stream, nullptr);
+            cudaEventRecord(end, stream);
+            cudaEventSynchronize(end);
+
+            auto tEnd = std::chrono::high_resolution_clock::now();
+            totalHost += std::chrono::duration<float, std::milli>(tEnd - tStart).count();
+            float ms;
+            cudaEventElapsedTime(&ms, start, end);
+            times[i] = ms;
+            totalGpu += ms;
+        }
+        totalGpu /= gParams.avgRuns;
+        totalHost /= gParams.avgRuns;
+        std::cout << "Average over " << gParams.avgRuns << " runs is " << totalGpu << " ms (host walltime is " << totalHost
+                  << " ms, " << static_cast<int>(gParams.pct) << "\% percentile time is " << percentile(gParams.pct, times) << ")." << std::endl;
+    }
+
+    cudaStreamDestroy(stream);
+    cudaEventDestroy(start);
+    cudaEventDestroy(end);
+    context->destroy();
+}
+
+ICudaEngine* createEngine()
+{
+    ICudaEngine* engine;
+    if ((!gParams.deployFile.empty()))
+    {
+        // Create engine (caffe)
+        engine = caffeToTRTModel(); // load prototxt & caffemodel files
+        if (!engine)
+        {
+            std::cerr << "Engine could not be created" << std::endl;
+            return nullptr;
         }
 
+        // write plan file if it is specified
+        if (!gParams.engine.empty())
+        {
+            std::ofstream p(gParams.engine);
+            if (!p)
+            {
+                std::cerr << "could not open plan output file" << std::endl;
+                return nullptr;
+            }
+            IHostMemory* ptr = engine->serialize();
+            assert(ptr);
+            p.write(reinterpret_cast<const char*>(ptr->data()), ptr->size());
+            ptr->destroy();
+        }
+        return engine;
+    }
+
+    // load directlry from serialized engine file if deploy not specified
+    if (!gParams.engine.empty()) {
+        char* trtModelStream {nullptr};
+        size_t size{0};
+        std::ifstream file(gParams.engine, std::ios::binary);
+        if (file.good()) {
+            file.seekg(0, file.end);
+            size = file.tellg();
+            file.seekg(0, file.beg);
+            trtModelStream = new char[size];
+            assert(trtModelStream);
+            file.read(trtModelStream, size);
+            file.close();
+        }
+
+        IRuntime* infer = createInferRuntime(gLogger);
+        PluginFactory pluginFactory;
+        engine = infer->deserializeCudaEngine(trtModelStream, size, &pluginFactory);
+        pluginFactory.destroyPlugin();
+        if (trtModelStream) delete[] trtModelStream;
+
+        gParams.inputs.empty() ?
+            gInputs.push_back("image") :
+            gInputs.push_back(gParams.inputs.c_str());
+        return engine;
+    }
+
+    // complain about empty deploy file
+    std::cerr << "Deploy file not specified" << std::endl;
+    return nullptr;
+}
+
+static void printUsage()
+{
+    printf("\n");
+    printf("Mandatory params:\n");
+    printf("  --deploy=<file>      Caffe deploy file\n");
+    printf("  --output=<name>      Output blob name (can be specified multiple times)\n");
+    printf("  --model=<file>       Caffe model file (default = no model, random weights used)\n");
+
+    printf("\nOptional params:\n");
+
+    printf("  --batch=N            Set batch size (default = %d)\n", gParams.batchSize);
+    printf("  --device=N           Set cuda device to N (default = %d)\n", gParams.device);
+    printf("  --iterations=N       Run N iterations (default = %d)\n", gParams.iterations);
+    printf("  --avgRuns=N          Set avgRuns to N - perf is measured as an average of avgRuns (default=%d)\n", gParams.avgRuns);
+    printf("  --percentile=P       For each iteration, report the percentile time at P percentage (0<=P<=100, with 0 representing min, and 100 representing max; default = %.1f%%)\n", gParams.pct);
+    printf("  --workspace=N        Set workspace size in megabytes (default = %d)\n", gParams.workspaceSize);
+    printf("  --fp16               Run in fp16 mode (default = false). Permits 16-bit kernels\n");
+    printf("  --int8               Run in int8 mode (default = false). Currently no support for ONNX model.\n");
+    printf("  --verbose            Use verbose logging (default = false)\n");
+    printf("  --engine=<file>      Generate a serialized TensorRT engine\n");
+    printf("  --calib=<file>       Read INT8 calibration cache file.  Currently no support for ONNX model.\n");
+    printf("  --useDLA=N           Enable execution on DLA for all layers that support dla. Value can range from 1 to N, where N is the number of dla engines on the platform.\n");
+    printf("  --allowGPUFallback   If --useDLA flag is present and if a layer can't run on DLA, then run on GPU. \n");
+    fflush(stdout);
+}
+
+bool parseString(const char* arg, const char* name, std::string& value)
+{
+    size_t n = strlen(name);
+    bool match = arg[0] == '-' && arg[1] == '-' && !strncmp(arg + 2, name, n) && arg[n + 2] == '=';
+    if (match)
+    {
+        value = arg + n + 3;
+        std::cout << name << ": " << value << std::endl;
+    }
+    return match;
+}
+
+bool parseInt(const char* arg, const char* name, int& value)
+{
+    size_t n = strlen(name);
+    bool match = arg[0] == '-' && arg[1] == '-' && !strncmp(arg + 2, name, n) && arg[n + 2] == '=';
+    if (match)
+    {
+        value = atoi(arg + n + 3);
+        std::cout << name << ": " << value << std::endl;
+    }
+    return match;
+}
+
+bool parseBool(const char* arg, const char* name, bool& value)
+{
+    size_t n = strlen(name);
+    bool match = arg[0] == '-' && arg[1] == '-' && !strncmp(arg + 2, name, n);
+    if (match)
+    {
+        std::cout << name << std::endl;
+        value = true;
+    }
+    return match;
+}
+
+bool parseFloat(const char* arg, const char* name, float& value)
+{
+    size_t n = strlen(name);
+    bool match = arg[0] == '-' && arg[1] == '-' && !strncmp(arg + 2, name, n) && arg[n + 2] == '=';
+    if (match)
+    {
+        value = atof(arg + n + 3);
+        std::cout << name << ": " << value << std::endl;
+    }
+    return match;
+}
+
+bool parseArgs(int argc, char* argv[])
+{
+    if (argc < 2)
+    {
+        printUsage();
+        return false;
+    }
+
+    for (int j = 1; j < argc; j++)
+    {
+        if (parseString(argv[j], "model", gParams.modelFile) || parseString(argv[j], "deploy", gParams.deployFile) || parseString(argv[j], "engine", gParams.engine))
+            continue;
+
+        if (parseString(argv[j], "calib", gParams.calibrationCache))
+            continue;
+
+        std::string output;
+        if (parseString(argv[j], "output", output))
+        {
+            gParams.outputs.push_back(output);
+            continue;
+        }
+
+        if (parseInt(argv[j], "batch", gParams.batchSize) || parseInt(argv[j], "iterations", gParams.iterations) || parseInt(argv[j], "avgRuns", gParams.avgRuns)
+            || parseInt(argv[j], "device", gParams.device) || parseInt(argv[j], "workspace", gParams.workspaceSize)
+            || parseInt(argv[j], "useDLA", gParams.useDLA))
+            continue;
+
+        if (parseFloat(argv[j], "percentile", gParams.pct))
+            continue;
+
+        if (parseBool(argv[j], "fp16", gParams.fp16) || parseBool(argv[j], "int8", gParams.int8)
+            || parseBool(argv[j], "verbose", gParams.verbose) || parseBool(argv[j], "allowGPUFallback", gParams.allowGPUFallback))
+            continue;
+
+        printf("Unknown argument: %s\n", argv[j]);
+        return false;
+    }
+    return true;
+}
+
+int main(int argc, char** argv)
+{
+    if (!parseArgs(argc, argv))
+        return -1;
+
+    cudaSetDevice(gParams.device);
+
+    if (gParams.outputs.size() == 0 && !gParams.deployFile.empty() && !gParams.modelFile.empty())
+    {
+        std::cerr << "At least one network output must be defined" << std::endl;
+        return -1;
+    }
+
+    std::cout << "Building and running a GPU inference engine for OpenPose, N=" << gParams.batchSize << "..." << std::endl;
+    
+    // create an engine
+    ICudaEngine* engine = createEngine();
+    if (!engine)
+    {
+        std::cerr << "Engine could not be created" << std::endl;
+        return -1;  
+    }
+    nvcaffeparser1::shutdownProtobufLibrary();
+
     // run inference with null data to time network performance
-    timeInference(engine, BATCH_SIZE);
+    std::cout << "Run inference..." << std::endl;
+    timeInference(engine);
+    doInference(engine);
 
     engine->destroy();
-    runtime->destroy();
 
-    gProfiler.printLayerTimes();
-
-    // Destroy plugins created by factory
-    pluginFactory.destroyPlugin();
+    //gProfiler.printLayerTimes();
 
     std::cout << "Done." << std::endl;
 
