@@ -1,6 +1,8 @@
 # openpose-engine
 OpenPose network tensorrt optimizer
 
+It is a personal TensorRT project, so it does not related to NV's official projects.
+This project aims to optimize [OpenPose](https://github.com/CMU-Perceptual-Computing-Lab/openpose) models. This project has Custom PReLU Plugin Layer for *pose/body_25* model. While I used *__half* data type, I didn't fully profiled this layer, so I don't have much to telling about this at this time.
 
 # How to use
 
@@ -18,7 +20,7 @@ $ docker exec -ti -e CUDA_VISIBLE_DEVICES=0 -e VERBOSE=1 tensorrt make
 $ docker exec -ti -e CUDA_VISIBLE_DEVICES=0 tensorrt bin/openpose
 ```
 
-** Result using 1 Tesla V100-DGX-Station **
+**Result using 1 Tesla V100-DGX-Station**
 ```bash
 Building and running a GPU inference engine for OpenPose, N=4...
 models/pose/body_25/pose_deploy.prototxt
@@ -508,5 +510,6 @@ Time over all layers: 25.567
 ```
 
 # Todo
-* [ ] Having target parameter
+* [ ] Integration with gie sample for general use
+* [ ] TensorRT Plan file I/O
 * [ ] Integration with OpenPose Application
