@@ -82,12 +82,13 @@ struct Profiler : public IProfiler
             record->second += ms;
     }
 
-    void printLayerTimes()
+    void printLayerTimes(bool print_all = true)
     {
         float totalTime = 0;
         for (size_t i = 0; i < mProfile.size(); i++)
         {
-            printf("%-40.40s %4.3fms\n", mProfile[i].first.c_str(), mProfile[i].second / TIMING_ITERATIONS);
+            if (print_all)
+                printf("%-40.40s %4.3fms\n", mProfile[i].first.c_str(), mProfile[i].second / TIMING_ITERATIONS);
             totalTime += mProfile[i].second;
         }
         printf("Time over all layers: %4.3f\n", totalTime / TIMING_ITERATIONS);
@@ -495,7 +496,7 @@ int main(int argc, char** argv)
 
     engine->destroy();
 
-    // gProfiler.printLayerTimes();
+    gProfiler.printLayerTimes(false);
 
     std::cout << "Done." << std::endl;
 
