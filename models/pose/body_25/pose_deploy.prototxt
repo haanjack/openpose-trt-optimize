@@ -2,8 +2,8 @@ name: "OpenPose - BODY_25"
 input: "image"
 input_dim: 4 # This value will be defined at runtime
 input_dim: 3
-input_dim: 640 # This value will be defined at runtime
-input_dim: 480 # This value will be defined at runtime
+input_dim: 656 # This value will be defined at runtime
+input_dim: 368 # This value will be defined at runtime
 layer {
   name: "conv1_1"
   type: "Convolution"
