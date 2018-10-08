@@ -110,8 +110,8 @@ size_t PReLUPlugin::getWorkspaceSize(int maxBatchSize) const
 
 int PReLUPlugin::enqueue(int batchSize, const void *const *inputs, void **outputs, void *workspace, cudaStream_t stream)
 {
-    const float onef{1.0f}, zerof{0.0f};
-    const __half oneh = fp16::__float2half(1.0f), zeroh = fp16::__float2half(0.0f);
+    const float zerof{0.0f};
+    const __half zeroh = __float2half(0.0f);
 
     const int count = batchSize * mNbInputCount;
     const int channels = mNbInputChannels;
@@ -126,6 +126,17 @@ int PReLUPlugin::enqueue(int batchSize, const void *const *inputs, void **output
                                  reinterpret_cast<float *>(outputs[0]),
                                  zerof,
                                  div_factor));
+
+
+
+        CHECK(Forward_gpu<float>(batchSize * mNbInputCount, 
+                                 mNbInputChannels,
+                                 mNbInputHeight * mNbInputHeight,
+                                 reinterpret_cast<const float *>(mDeviceKernel),
+                                 reinterpret_cast<const float *>(inputs[0]),
+                                 reinterpret_cast<float *>(outputs[0]),
+                                 zerof,
+                                 mChannelShared ? mNbInputChannels : 1));
     }
     else
     {
@@ -211,9 +222,9 @@ void PReLUPlugin::convertAndCopyToDevice(void *&deviceWeights, const Weights &we
         void *buffer = malloc(size);
         for (int64_t v = 0; v < weights.count; ++v)
             if (mWeights.type == DataType::kFLOAT)
-                static_cast<float *>(buffer)[v] = fp16::__half2float(static_cast<const __half *>(weights.values)[v]);
+                static_cast<float *>(buffer)[v] = __half2float(static_cast<const __half *>(weights.values)[v]);
             else
-                static_cast<__half *>(buffer)[v] = fp16::__float2half(static_cast<const float *>(weights.values)[v]);
+                static_cast<__half *>(buffer)[v] = __float2half(static_cast<const float *>(weights.values)[v]);
 
         deviceWeights = copyToDevice(buffer, size);
         free(buffer);
@@ -227,9 +238,9 @@ void PReLUPlugin::convertAndCopyToBuffer(char *&buffer, const Weights &weights)
     if (weights.type != mWeights.type)
         for (int64_t v = 0; v < weights.count; ++v)
             if (mWeights.type == DataType::kFLOAT)
-                reinterpret_cast<float *>(buffer)[v] = fp16::__half2float(static_cast<const __half *>(weights.values)[v]);
+                reinterpret_cast<float *>(buffer)[v] = __half2float(static_cast<const __half *>(weights.values)[v]);
             else
-                reinterpret_cast<__half *>(buffer)[v] = fp16::__float2half(static_cast<const float *>(weights.values)[v]);
+                reinterpret_cast<__half *>(buffer)[v] = __float2half(static_cast<const float *>(weights.values)[v]);
     else
         memcpy(buffer, weights.values, weights.count * type2size(mWeights.type));
     buffer += weights.count * type2size(mWeights.type);

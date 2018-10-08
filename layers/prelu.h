@@ -72,6 +72,8 @@ private:
     //DataType mDataType{DataType::kFLOAT};
 
     void* mDeviceKernel{nullptr};
+
+    void dump(const char* filename, void* memblock, size_t size);
 };
 
 // integration for serialization

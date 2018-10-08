@@ -1,4 +1,5 @@
 #include "kernel_func.cuh"
+#include <cuda_fp16.h>
 #include <iostream>
 
 // CUDA: use 512 threads per block

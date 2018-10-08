@@ -24,17 +24,11 @@ using namespace nvcaffeparser1;
 static const int BATCH_SIZE = 4;
 static const int TIMING_ITERATIONS = 1000;
 
-const char* INPUT_BLOB_NAME = "image";
-const char* OUTPUT_BLOB_NAME = "net_output";
-
 // const char *file_prototxt = "pose_deploy_linevec.prototxt";
 // const char *file_caffemodel = "pose_iter_440000.caffemodel";
 const char *file_prototxt = "pose_deploy.prototxt";
 const char *file_caffemodel = "pose_iter_584000.caffemodel";
 const char* model_path = "models/pose/coco";
-
-static int gDLA{0};
-
 
 struct Params
 {
@@ -178,40 +172,6 @@ ICudaEngine* caffeToTRTModel()
     return engine;
 }
 
-void timeInference(ICudaEngine* engine)
-{
-    // input and output buffer pointers that we pass to the engine - the engine requires exactly ICudaEngine::getNbBindings(),
-    // of these, but in this case we know that there is exactly one input and one output.
-    assert(engine->getNbBindings() == 2);
-    void* buffers[2];
-
-    // In order to bind the buffers, we need to know the names of the input and output tensors.
-    // note that indices are guaranteed to be less than ICudaEngine::getNbBindings()
-    int inputIndex = engine->getBindingIndex(INPUT_BLOB_NAME), outputIndex = engine->getBindingIndex(OUTPUT_BLOB_NAME);
-
-    // allocate GPU buffers
-    Dims3 inputDims = static_cast<Dims3&&>(engine->getBindingDimensions(inputIndex)), outputDims = static_cast<Dims3&&>(engine->getBindingDimensions(outputIndex));
-    size_t inputSize = gParams.batchSize * inputDims.d[0] * inputDims.d[1] * inputDims.d[2] * sizeof(float);
-    size_t outputSize = gParams.batchSize * outputDims.d[0] * outputDims.d[1] * outputDims.d[2] * sizeof(float);
-
-    CHECK(cudaMalloc(&buffers[inputIndex], inputSize));
-    CHECK(cudaMalloc(&buffers[outputIndex], outputSize));
-
-    IExecutionContext* context = engine->createExecutionContext();
-    context->setProfiler(&gProfiler);
-
-    // zero the input buffer
-    CHECK(cudaMemset(buffers[inputIndex], 0, inputSize));
-
-    for (int i = 0; i < TIMING_ITERATIONS;i++)
-        context->execute(gParams.batchSize, buffers);
-
-    // release the context and buffers
-    context->destroy();
-    CHECK(cudaFree(buffers[inputIndex]));
-    CHECK(cudaFree(buffers[outputIndex]));
-}
-
 void createMemory(const ICudaEngine* engine, std::vector<void*>& buffers, const std::string& name)
 {
     size_t bindingIndex = engine->getBindingIndex(name.c_str());
@@ -258,29 +218,37 @@ void doInference(ICudaEngine* engine)
     CHECK(cudaEventCreateWithFlags(&end, cudaEventBlockingSync));
 
     std::vector<float> times(gParams.avgRuns);
+    float endTotalGpu{0}, endTotalHost{0}; // GPU and Host timers
     for (int j = 0; j < gParams.iterations; j++)
     {
         float totalGpu{0}, totalHost{0}; // GPU and Host timers
+        auto tStart = std::chrono::high_resolution_clock::now();
+        cudaEventRecord(start, stream);
         for (int i = 0; i < gParams.avgRuns; i++)
-        {
-            auto tStart = std::chrono::high_resolution_clock::now();
-            cudaEventRecord(start, stream);
+        {    
             context->enqueue(gParams.batchSize, &buffers[0], stream, nullptr);
-            cudaEventRecord(end, stream);
-            cudaEventSynchronize(end);
-
-            auto tEnd = std::chrono::high_resolution_clock::now();
-            totalHost += std::chrono::duration<float, std::milli>(tEnd - tStart).count();
-            float ms;
-            cudaEventElapsedTime(&ms, start, end);
-            times[i] = ms;
-            totalGpu += ms;
         }
+        cudaEventRecord(end, stream);
+        cudaEventSynchronize(end);
+
+        auto tEnd = std::chrono::high_resolution_clock::now();
+        totalHost = std::chrono::duration<float, std::milli>(tEnd - tStart).count();
+        float ms;
+        cudaEventElapsedTime(&ms, start, end);
+        //times[i] = ms;
+        totalGpu = ms;
         totalGpu /= gParams.avgRuns;
         totalHost /= gParams.avgRuns;
-        std::cout << "Average over " << gParams.avgRuns << " runs is " << totalGpu << " ms (host walltime is " << totalHost
-                  << " ms, " << static_cast<int>(gParams.pct) << "\% percentile time is " << percentile(gParams.pct, times) << ")." << std::endl;
+        std::cout << "Average over " << gParams.avgRuns << " runs is " << totalGpu << " ms (host walltime is " << totalHost << " ms, " 
+            << static_cast<int>(gParams.pct) << "\% percentile time is " << percentile(gParams.pct, times) << ")." << std::endl;
+        endTotalGpu += totalGpu;
+        endTotalHost += totalHost;
     }
+    endTotalGpu /= gParams.avgRuns;
+    endTotalHost /= gParams.avgRuns;
+    
+    std::cout << "end iteration" << std::endl;
+    std::cout << "Average over " << gParams.avgRuns << " runs is " << endTotalGpu << " ms (host walltime is " << endTotalHost << " ms)." << std::endl;
 
     cudaStreamDestroy(stream);
     cudaEventDestroy(start);
@@ -336,7 +304,7 @@ ICudaEngine* createEngine()
         IRuntime* infer = createInferRuntime(gLogger);
         PluginFactory pluginFactory;
         engine = infer->deserializeCudaEngine(trtModelStream, size, &pluginFactory);
-        pluginFactory.destroyPlugin();
+        //pluginFactory.destroyPlugin();
         if (trtModelStream) delete[] trtModelStream;
 
         gParams.inputs.empty() ?
@@ -496,7 +464,7 @@ int main(int argc, char** argv)
 
     engine->destroy();
 
-    gProfiler.printLayerTimes(false);
+    // gProfiler.printLayerTimes(false);
 
     std::cout << "Done." << std::endl;
 

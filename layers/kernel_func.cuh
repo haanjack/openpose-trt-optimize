@@ -2,7 +2,7 @@
 #define _KERNEL_FUNC_H_
 
 #include <cuda_runtime_api.h>
-#include "fp16.cuh"
+#include <cuda_fp16.h>
 
 template <typename Ftype>
 cudaError_t Forward_gpu(const int count, const int channels, const int dim,
