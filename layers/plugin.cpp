@@ -123,16 +123,18 @@ int PReLUPlugin::enqueue(int batchSize, const void *const *inputs, void **output
                                  reinterpret_cast<const float *>(inputs[0]),
                                  reinterpret_cast<float *>(outputs[0]),
                                  zerof,
-                                 div_factor));
+                                 div_factor,
+                                 stream));
     }
-    else
+    else // DataType::kHALF
     {
         CHECK(Forward_gpu<__half>(count, channels, dim,
                                   reinterpret_cast<const __half *>(mDeviceKernel),
                                   reinterpret_cast<const __half *>(inputs[0]),
                                   reinterpret_cast<__half *>(outputs[0]),
                                   zeroh,
-                                  div_factor));
+                                  div_factor,
+                                  stream));
     }
 
     return 0;

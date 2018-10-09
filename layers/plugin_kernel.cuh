@@ -10,6 +10,6 @@ cudaError_t Forward_gpu(const int count, const int channels, const int dim,
                         const Ftype *bottom_data, Ftype *top_data,
                         const Ftype zero,
                         const int div_factor,
-                        cudaStream_t stream = 0);
+                        cudaStream_t stream);
 
 #endif // _KERNEL_FUNC_H_
