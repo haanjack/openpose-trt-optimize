@@ -1,5 +1,3 @@
-#include "prelu.h"
-
 #include <cassert>
 #include <cuda_runtime.h>
 #include <cuda_runtime_api.h>
@@ -9,8 +7,8 @@
 #include "NvCaffeParser.h"
 #include "common.h"
 
-#include "kernel_func.cuh"
-#include <cstdio>
+#include "plugin.hpp"
+#include "plugin_kernel.cuh"
 
 using namespace nvinfer1;
 using namespace plugin;

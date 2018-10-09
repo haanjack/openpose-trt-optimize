@@ -14,7 +14,7 @@
 #include "common.h"
 
 // Custom Layer
-#include "layers/prelu.h"
+#include "layers/plugin.hpp"
 
 static Logger gLogger;
 using namespace nvinfer1;

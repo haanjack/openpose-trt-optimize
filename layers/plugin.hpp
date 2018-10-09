@@ -8,7 +8,7 @@
 #include "NvInfer.h"
 #include "NvInferPlugin.h"
 #include "NvCaffeParser.h"
-#include "kernel_func.cuh"
+#include "plugin_kernel.cuh"
 
 using namespace nvinfer1;
 using namespace plugin;

@@ -1,4 +1,4 @@
-#include "kernel_func.cuh"
+#include "plugin_kernel.cuh"
 #include <cuda_fp16.h>
 #include <iostream>
 
