@@ -124,17 +124,6 @@ int PReLUPlugin::enqueue(int batchSize, const void *const *inputs, void **output
                                  reinterpret_cast<float *>(outputs[0]),
                                  zerof,
                                  div_factor));
-
-
-
-        CHECK(Forward_gpu<float>(batchSize * mNbInputCount, 
-                                 mNbInputChannels,
-                                 mNbInputHeight * mNbInputHeight,
-                                 reinterpret_cast<const float *>(mDeviceKernel),
-                                 reinterpret_cast<const float *>(inputs[0]),
-                                 reinterpret_cast<float *>(outputs[0]),
-                                 zerof,
-                                 mChannelShared ? mNbInputChannels : 1));
     }
     else
     {
