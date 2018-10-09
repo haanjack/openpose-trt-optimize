@@ -222,21 +222,21 @@ void doInference(ICudaEngine* engine)
     for (int j = 0; j < gParams.iterations; j++)
     {
         float totalGpu{0}, totalHost{0}; // GPU and Host timers
-        auto tStart = std::chrono::high_resolution_clock::now();
-        cudaEventRecord(start, stream);
         for (int i = 0; i < gParams.avgRuns; i++)
         {    
+            auto tStart = std::chrono::high_resolution_clock::now();
+            cudaEventRecord(start, stream);
             context->enqueue(gParams.batchSize, &buffers[0], stream, nullptr);
-        }
-        cudaEventRecord(end, stream);
-        cudaEventSynchronize(end);
+            cudaEventRecord(end, stream);
+            cudaEventSynchronize(end);
 
-        auto tEnd = std::chrono::high_resolution_clock::now();
-        totalHost = std::chrono::duration<float, std::milli>(tEnd - tStart).count();
-        float ms;
-        cudaEventElapsedTime(&ms, start, end);
-        //times[i] = ms;
-        totalGpu = ms;
+            auto tEnd = std::chrono::high_resolution_clock::now();
+            totalHost = std::chrono::duration<float, std::milli>(tEnd - tStart).count();
+            float ms;
+            cudaEventElapsedTime(&ms, start, end);
+            times[i] = ms;
+            totalGpu += ms;
+        }
         totalGpu /= gParams.avgRuns;
         totalHost /= gParams.avgRuns;
         std::cout << "Average over " << gParams.avgRuns << " runs is " << totalGpu << " ms (host walltime is " << totalHost << " ms, " 
@@ -244,11 +244,11 @@ void doInference(ICudaEngine* engine)
         endTotalGpu += totalGpu;
         endTotalHost += totalHost;
     }
-    endTotalGpu /= gParams.avgRuns;
-    endTotalHost /= gParams.avgRuns;
+    endTotalGpu /= gParams.iterations;
+    endTotalHost /= gParams.iterations;
     
     std::cout << "end iteration" << std::endl;
-    std::cout << "Average over " << gParams.avgRuns << " runs is " << endTotalGpu << " ms (host walltime is " << endTotalHost << " ms)." << std::endl;
+    std::cout << "Total average over " << gParams.avgRuns * gParams.iterations << " runs is " << endTotalGpu << " ms (host walltime is " << endTotalHost << " ms)." << std::endl;
 
     cudaStreamDestroy(stream);
     cudaEventDestroy(start);
